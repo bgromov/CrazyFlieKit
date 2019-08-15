@@ -1,0 +1,8 @@
+framework module CrazyFlieKit {
+    umbrella header "CrazyFlieKit.h"
+    
+    private header "CommandPacket.h"
+
+    export *
+    module * { export * }
+}
