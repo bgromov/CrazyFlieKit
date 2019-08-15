@@ -259,10 +259,11 @@ public class StopWatch {
         statsQueue.async {
             self.buf.write(dt)
 
+            let (count, avg) = self.average()
+            (self.window, self.avgTime) = (count, avg)
+
             if self.buf.availableSpaceForWriting == 0 {
                 _ = self.buf.read()
-                let (count, avg) = self.average()
-                (self.window, self.avgTime) = (count, avg)
             }
         }
 
@@ -288,10 +289,11 @@ public class StopWatch {
             statsQueue.async {
                 self.buf.write(dt)
 
+                let (count, avg) = self.average()
+                (self.window, self.avgTime) = (count, avg)
+
                 if self.buf.availableSpaceForWriting == 0 {
                     _ = self.buf.read()
-                    let (count, avg) = self.average()
-                    (self.window, self.avgTime) = (count, avg)
                 }
             }
         }
