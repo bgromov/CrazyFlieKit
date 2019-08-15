@@ -273,7 +273,9 @@ public class StopWatch {
                     return
                 }
 
-                delegate.stopWatch(self, window: self.window, didEstimateTime: avg)
+                DispatchQueue.main.async {
+                    delegate.stopWatch(self, window: self.window, didEstimateTime: avg)
+                }
             }
         }
     }
@@ -301,7 +303,9 @@ public class StopWatch {
                     return
                 }
 
-                delegate.stopWatch(self, window: self.window, didEstimateHz: 1.0 / avg)
+                DispatchQueue.main.async {
+                    delegate.stopWatch(self, window: self.window, didEstimateHz: 1.0 / avg)
+                }
             }
         }
 
