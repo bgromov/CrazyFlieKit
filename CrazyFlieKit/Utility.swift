@@ -177,7 +177,19 @@ private extension Array {
     }
 }
 
+public protocol StopWatchDelegate: class {
+    func stopWatch(_ stopWatch: StopWatch, window: Int, didEstimateHz value: Double)
+    func stopWatch(_ stopWatch: StopWatch, window: Int, didEstimateTime value: CFTimeInterval)
+}
+
 public class StopWatch {
+    /// Class delegate
+    public weak var delegate: StopWatchDelegate?
+    /// How often to report statistics
+    public var statsInterval: CFTimeInterval
+    /// Current window size. Can be less than maxWindow
+    private(set) public var window: Int
+
     private var buf: RingBuffer<CFTimeInterval>
     private var startTime: CFTimeInterval
     private var stopTime: CFTimeInterval
@@ -189,11 +201,15 @@ public class StopWatch {
 
     private let bufSize: Int
 
-    public init(count: Int) {
-        bufSize = count
-        buf = RingBuffer(count: count)
+    public init(maxWindow: Int, statsInterval: CFTimeInterval = 1.0, delegate: StopWatchDelegate? = nil) {
+        bufSize = maxWindow
+        buf = RingBuffer(count: maxWindow)
         startTime = 0.0
         stopTime = 0.0
+
+        self.statsInterval = statsInterval
+        self.delegate = delegate
+        self.window = 0
 
         statsQueue = DispatchQueue(label: "ch.volaly.crazyfliekit.stopwatch", attributes: [])
     }
@@ -226,11 +242,11 @@ public class StopWatch {
         closure()
     }
 
-    private func average() -> CFTimeInterval {
+    private func average() -> (Int, CFTimeInterval) {
         let sum = buf.reduce(CFTimeInterval(), +)
         let count = buf.availableSpaceForReading
 
-        return sum / Double(count)
+        return (count, sum / Double(count))
     }
 
     public func start() {
@@ -239,15 +255,26 @@ public class StopWatch {
 
     public func stop() {
         stopTime = CACurrentMediaTime()
-        buf.write(stopTime - startTime)
+        let dt = stopTime - startTime
+        statsQueue.async {
+            self.buf.write(dt)
 
-        if buf.availableSpaceForWriting == 0 {
-            _ = buf.read()
-            self.avgTime = self.average()
+            if self.buf.availableSpaceForWriting == 0 {
+                _ = self.buf.read()
+                let (count, avg) = self.average()
+                (self.window, self.avgTime) = (count, avg)
+            }
         }
 
-        if let _ = self.avgTime {
-            throttle(timeInterval: 1.0) {printTime()}
+        if let avg = self.avgTime {
+            throttle(timeInterval: statsInterval) {
+                guard let delegate = delegate else {
+                    printTime()
+                    return
+                }
+
+                delegate.stopWatch(self, window: self.window, didEstimateTime: avg)
+            }
         }
     }
 
@@ -261,13 +288,21 @@ public class StopWatch {
 
                 if self.buf.availableSpaceForWriting == 0 {
                     _ = self.buf.read()
-                    self.avgTime = self.average()
+                    let (count, avg) = self.average()
+                    (self.window, self.avgTime) = (count, avg)
                 }
             }
         }
 
-        if let _ = self.avgTime {
-            self.throttle(timeInterval: 1.0) {self.printHz()}
+        if let avg = self.avgTime {
+            throttle(timeInterval: statsInterval) {
+                guard let delegate = delegate else {
+                    printHz()
+                    return
+                }
+
+                delegate.stopWatch(self, window: self.window, didEstimateHz: 1.0 / avg)
+            }
         }
 
         self.hzLastTime = now
